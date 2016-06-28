@@ -13,6 +13,7 @@ To build VMJK you need CSFML and rust.
 ```
 
 ## TODO
+
 [ ] GUI
 [ ] General MIDI support
 [ ] Command line arguments
