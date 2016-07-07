@@ -5,6 +5,7 @@ authors = ["Сухарик <suhr@i2pmail.org>"]
 
 [dependencies]
 portmidi = "^0.2"
+getopts = "^0.2"
 
 [dependencies.sfml]
 git = "https://github.com/jeremyletang/rust-sfml.git"
