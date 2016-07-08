@@ -1,6 +1,6 @@
 # Virtual Midi Janko keyboard
 
-![](http://i.imgur.com/amtjcq5.gif)
+![](http://i.imgur.com/31hAQki.png)
 
 VMJK is a virtual midi keyboard using janko key layout, written in Rust.
 
@@ -12,9 +12,11 @@ To build VMJK you need CSFML and rust.
 % cargo build --release
 ```
 
-## TODO
+## Keybindings
 
-[ ] GUI
-[ ] General MIDI support
-[ ] Command line arguments
-[ ] Configyration
+![](http://i.stack.imgur.com/VJEZC.jpg)
+
+- <kbd>\\</kbd>, <kbd>z</kbd>, <kbd>x</kbd>, <kbd>c</kbd>... → C, D, E, F♯... 
+- <kbd>\\</kbd>, <kbd>a</kbd>, <kbd>w</kbd>, <kbd>3</kbd>... → C, C♯, D, D♯..
+- <kbd>Space</kbd> switches octaves: (C4) <kbd>Space</kbd> → (C3) <kbd>Space</kbd> → (C4)
+- <kbd>Enter</kbd> releases all notes
