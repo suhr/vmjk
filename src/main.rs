@@ -54,7 +54,7 @@ impl MusicBox {
     fn all_notes_off(&mut self) {
         // Better to send ALL NOTES OFF, but there're some synths that don't understand it
         for n in 0..36 {
-            drop(self.note_off(n))
+            drop(self.note_off(48 + n))
         }
     }
 
