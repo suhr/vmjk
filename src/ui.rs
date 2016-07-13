@@ -12,23 +12,43 @@ pub struct Hexes {
     radius: f32,
     width: f32,
     height: f32,
+    x: f32,
+    y: f32,
+    margin: f32,
     pressed: Vec<u8>,
 }
 
 impl Hexes {
-    pub fn new() -> Self {
+    pub fn new(margin: f32) -> Self {
+        let radius = 40.0;
         Hexes {
             note: 60,
-            radius: 40.0,
-            width: 0.0,
-            height: 0.0,
+            radius: radius,
+            width: radius * (13.0 * HORIZ_X),
+            height: radius * 7.0,
+            x: 0.0,
+            y: 0.0,
+            margin: margin,
             pressed: vec![],
         }
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {
         let (w, h) = (width / (13.0 * HORIZ_X), height / (7.0));
-        self.radius = if w <= h { w } else { h };
+        self.radius = if w <= h {
+            self.x = 0.0;
+            self.y = 0.5 * (height - self.height);
+
+            w
+        } else {
+            self.x = 0.5 * (width - self.width);
+            self.y = 0.0;
+
+            h
+        };
+
+        self.width = self.radius * (13.0 * HORIZ_X);
+        self.height = self.radius * 7.0
     }
 
     pub fn press(&mut self, note: u8) {
@@ -47,7 +67,6 @@ impl Hexes {
         self.note = note;
     }
 
-
     fn note_pressed(&self, note: u8) -> bool {
         self.pressed.contains(&(self.note + note))
     }
@@ -60,6 +79,7 @@ impl Drawable for Hexes {
         cs.set_fill_color(&Color::new_rgb(0,0,0));
         cs.set_outline_thickness(2.5);
         cs.set_outline_color(&Color::new_rgb(0x26,0x32,0x38));
+        cs.move2f(self.x, self.y + self.margin);
         cs.move2f(r * DIAG_X, 0.0);
 
         for _ in 0..2 {

@@ -4,7 +4,7 @@ extern crate sfml;
 
 use portmidi::{PortMidi, MidiMessage, OutputPort, Result as PmResult};
 use sfml::window::*;
-use sfml::graphics::{RenderWindow, RenderTarget, Color, View, Rect};
+use sfml::graphics::{RenderWindow, RenderTarget, Color, View, Rect, Text, Font};
 
 use layout::*;
 use ui::*;
@@ -12,21 +12,25 @@ use ui::*;
 mod layout;
 mod ui;
 
+static FONT: &'static [u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/PTM55F.ttf"));
+
 struct MusicBox {
     pub hexes: Hexes,
     map: Layout,
     port: OutputPort,
     chan: u8,
+    patches: [(Option<u8>, Option<u16>); 16],
     low: bool,
 }
 
 impl MusicBox {
-    fn new(port: OutputPort) -> Self {
+    fn new(port: OutputPort, font_size: u32) -> Self {
         MusicBox {
-            hexes: Hexes::new(),
+            hexes: Hexes::new(1.5 * font_size as f32),
             map: Layout::new(),
             port: port,
             chan: 0,
+            patches: [(None, None); 16],
             low: false,
         }
     }
@@ -56,9 +60,42 @@ impl MusicBox {
         for n in 0..36 {
             drop(self.note_off(48 + n))
         }
+
+        self.hexes.release_all();
     }
 
-    fn press(&mut self, key: Key) {
+    fn set_patch(&mut self, patch: u8) {
+        let msg = MidiMessage {
+            status: 0xC0 + self.chan,
+            data1: patch,
+            data2: 0,
+        };
+
+        drop(self.port.write_message(msg));
+        self.patches[self.chan as usize].0 = Some(patch);
+    }
+
+    fn set_bank(&mut self, bank: u16) {
+        let (msb, lsb) = ((bank >> 7) as u8, (bank & 0x7F) as u8);
+        let msg = MidiMessage {
+            status: 0xD0 + self.chan,
+            data1: 0,
+            data2: msb,
+        };
+
+        drop(self.port.write_message(msg));
+
+        let msg = MidiMessage {
+            status: 0xD0 + self.chan,
+            data1: 0x20,
+            data2: lsb,
+        };
+
+        drop(self.port.write_message(msg));
+        self.patches[self.chan as usize].1 = Some(bank);
+    }
+
+    fn press(&mut self, key: Key, ctrl: bool) {
         match key {
             Key::Add if self.chan != 15 => 
                 self.chan += 1,
@@ -69,10 +106,30 @@ impl MusicBox {
 
                 let shift = if self.low == false { 0 } else { 12 };
                 self.hexes.base_note(60 - shift);
+                self.all_notes_off();
+            },
+            Key::PageUp if !ctrl => {
+                let num = self.patches[self.chan as usize].0
+                    .map(|n| if n != 127 { n + 1 } else { n }).unwrap_or(0);
+                self.set_patch(num);
+            },
+            Key::PageDown if !ctrl => {
+                let num = self.patches[self.chan as usize].0
+                    .map(|n| if n != 0 { n - 1 } else { n }).unwrap_or(0);
+                self.set_patch(num);
+            },
+            Key::PageUp => {
+                let num = self.patches[self.chan as usize].1
+                    .map(|n| if n != 16383 { n + 1 } else { n }).unwrap_or(0);
+                self.set_bank(num);
+            },
+            Key::PageDown => {
+                let num = self.patches[self.chan as usize].1
+                    .map(|n| if n != 0 { n - 1 } else { n }).unwrap_or(0);
+                self.set_bank(num);
             },
             Key::Return => {
                 self.all_notes_off();
-                self.hexes.release_all();
             },
 
             _ => if let Some(note) = self.map.note(60, key) {
@@ -90,14 +147,24 @@ impl MusicBox {
             self.hexes.release(note);
         }
     }
+
+    fn status(&self) -> String {
+        let level = if self.low { "Low" } else { "High" };
+        let patch = self.patches[self.chan as usize].0.map(|p| p.to_string()).unwrap_or("?".to_string());
+        let bank = self.patches[self.chan as usize].1.map(|p| p.to_string()).unwrap_or("?".to_string());
+        let dev = self.port.device().name().to_string();
+
+        format!(" [{}], channel {}, program {} from bank {} [{}]", level, self.chan, patch, bank, dev)
+    }
 }
 
 
 fn proceed(midi: PortMidi, port: OutputPort) {
-    let mut the_box = MusicBox::new(port);
+    let font = Font::new_from_memory(FONT).unwrap();
+    let mut the_box = MusicBox::new(port, 20);
 
     let mut window = RenderWindow::new(
-        VideoMode::new_init(980, 280, 32),
+        VideoMode::new_init(980, 310, 32),
         "Virtual Midi Janko Keyboard",
         WindowStyle::default(),
         &ContextSettings::default().antialiasing(8),
@@ -105,25 +172,36 @@ fn proceed(midi: PortMidi, port: OutputPort) {
     window.set_key_repeat_enabled(false);
 
     loop {
+        let status = the_box.status();
+        let text = Text::new_init(&status, &font, 20).unwrap();
         loop {
             let event = window.poll_event();
             match event {
                 Some(Event::Closed) => return,
                 Some(Event::Resized {width: w, height: h}) => {
                     window.set_view(&View::new_from_rect(&Rect::new(0.0, 0.0, w as f32, h as f32)).unwrap());
-                    the_box.hexes.resize(w as f32, h as f32);
+                    the_box.hexes.resize(w as f32, h as f32 - 30.0);
                 },
-                Some(Event::KeyPressed {code, ..}) => the_box.press(code),
+                Some(Event::KeyPressed {code, ctrl, ..}) => the_box.press(code, ctrl),
                 Some(Event::KeyReleased {code, ..}) => the_box.release(code),
                 None => break,
                 _ => (),
             }
         }
         window.clear(&Color::new_rgb(0x21, 0x21, 0x21));
+        window.draw(&text);
 
         window.draw(&the_box.hexes);
         window.display();
         ::std::thread::sleep(::std::time::Duration::from_millis(25));
+    }
+}
+
+fn get_port(midi: &PortMidi, id: Option<i32>) -> PmResult<OutputPort> {
+    match id {
+        Some(id) =>
+            midi.device(id).and_then(|dev| midi.output_port(dev, 1024)),
+        None => midi.default_output_port(1024),
     }
 }
 
@@ -137,7 +215,7 @@ fn main() {
     use std::env::*;
 
     let midi = PortMidi::new().unwrap();
-    let port;
+    let port_id;
 
     let mut args = args();
     let prog = args.next().unwrap();
@@ -160,31 +238,23 @@ fn main() {
         return
     }
     if let Some(id) = matches.opt_str("p") {
-        use portmidi::PmError::PmInvalidDeviceId;
-        use portmidi::Error::PortMidi;
+        if let Ok(id) = id.parse::<i32>() {
+            port_id = Some(id)
+        } else {
+            println!("Not an integer: {}", id);
+            return
+        }
+    } else { port_id = None }
 
-        let dev = id.parse::<i32>().map(|id| midi.device(id));
-        let dev = match dev {
-            Ok(Ok(dev)) =>
-                if dev.is_output() {
-                    dev
-                } else {
-                    println!("Not an output device: {}", id);
-                    return
-                },
-            Err(_) | Ok(Err(PortMidi(PmInvalidDeviceId))) => {
-                println!("Invalid device id: {}", id);
+    let port = if midi.device_count() != 0 {
+        match get_port(&midi, port_id) {
+            Ok(p) => p,
+            Err(e) => {
+                println!("{}", e);
                 return
-            },
-            Ok(Err(e)) => panic!("MIDI error: {}", e),
-        };
-        port = midi.output_port(dev, 1024)
-            .unwrap_or_else(|e| panic!("Cannot connect to midi port {}: {}", id, e))
-    } else {
-        if midi.device_count() == 0 { panic!("No midi devices in the system") }
-
-        port = midi.default_output_port(1024).expect("Cannot connect to default output port");
-    }
+            }
+        }
+    } else { panic!("No midi devices in the system") };
 
     proceed(midi, port);
 }
