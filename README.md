@@ -1,6 +1,6 @@
 # Virtual Midi Janko keyboard
 
-![](http://i.imgur.com/31hAQki.png)
+![](https://ipfs.pics/ipfs/QmQMHAkrLBuARjXfPBoq46TUvy2wxvY4kmD73hiuW6Mm8o)
 
 VMJK is a virtual midi keyboard using janko key layout, written in Rust.
 
