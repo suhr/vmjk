@@ -3,8 +3,8 @@ extern crate portmidi;
 extern crate sfml;
 
 use portmidi::{PortMidi, MidiMessage, OutputPort, Result as PmResult};
-use sfml::window::*;
-use sfml::graphics::{Drawable, RenderWindow, RenderTarget, RenderStates, Color, View, Rect, Text, Font};
+use sfml::window::{Key, VideoMode, WindowStyle, ContextSettings, event::Event};
+use sfml::graphics::{Drawable, RenderWindow, RenderTarget, RenderStates, Color, View, FloatRect, Text, Font};
 
 use layout::*;
 use ui::*;
@@ -232,12 +232,15 @@ impl<'a> Drawable for MusicBox<'a> {
 fn proceed(midi: PortMidi, port: OutputPort) {
     let view = (980.0, 310.0);
     let mut the_box = MusicBox::new(&midi, port, view, 20);
+    
+    let mut context_settings = ContextSettings::default();
+    context_settings.0.antialiasing_level = 8;
 
     let mut window = RenderWindow::new(
         VideoMode::new_init(view.0 as u32, view.1 as u32, 32),
         "Virtual Midi Janko Keyboard",
         WindowStyle::default(),
-        &ContextSettings::default().antialiasing(8),
+        &context_settings,
     ).expect("Cannot create a new Render Window.");
     window.set_key_repeat_enabled(false);
 
@@ -245,15 +248,15 @@ fn proceed(midi: PortMidi, port: OutputPort) {
         loop {
             let event = window.poll_event();
             match event {
-                Some(Event::Closed) => return,
-                Some(Event::Resized {width: w, height: h}) => {
-                    window.set_view(&View::new_from_rect(&Rect::new(0.0, 0.0, w as f32, h as f32)).unwrap());
+                Event::Closed => return,
+                Event::Resized {width: w, height: h} => {
+                    window.set_view(&View::new_from_rect(&FloatRect::new(0.0, 0.0, w as f32, h as f32)).unwrap());
                     the_box.resize(w as f32, h as f32);
                 },
-                Some(Event::KeyPressed {code, ctrl, ..}) => the_box.press(code, ctrl),
-                Some(Event::TextEntered {code}) => the_box.text(code),
-                Some(Event::KeyReleased {code, ..}) => the_box.release(code),
-                None => break,
+                Event::KeyPressed {code, ctrl, ..} => the_box.press(code, ctrl),
+                Event::TextEntered {code} => the_box.text(code),
+                Event::KeyReleased {code, ..} => the_box.release(code),
+                Event::NoEvent => break,
                 _ => (),
             }
         }
